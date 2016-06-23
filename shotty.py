@@ -2,14 +2,27 @@
 
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+from gi.repository import Gio, Gtk
 from datetime import datetime
 from subprocess import call
+
+UI_INFO = """
+<ui>
+    <menubar name='MenuBar'>
+        <menu action='FileMenu'>
+            <menuitem action='FileQuit' />
+        </menu>
+        <menu action='ScreenshotMenu'>
+            <menuitem action='ScreenshotTakeFullscreen' />
+            <menuitem action='ScreenshotTakeWindow' />
+        </menu>
+    </menubar>
+</ui>
+"""
 
 class Shotty(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, title="Shotty")
-        self.set_border_width(10)
 
         header = Gtk.HeaderBar()
         header.set_show_close_button(True)
@@ -19,32 +32,60 @@ class Shotty(Gtk.Window):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.add(vbox)
 
-        target_row = Gtk.Box(spacing=6)
-        vbox.add(target_row)
+        action_group = Gtk.ActionGroup("menu_actions")
+        self.add_file_menu_actions(action_group)
+        self.add_screenshot_menu_actions(action_group)
+
+        uimanager = self.create_ui_manager()
+        uimanager.insert_action_group(action_group)
+
+        menubar = uimanager.get_widget("/MenuBar")
+        vbox.pack_start(menubar, False, False, 0)
+
+        target_row = Gtk.Box()
+        vbox.pack_start(target_row, False, False, 6)
 
         self.target_label = Gtk.Label()
         self.set_target("/tmp")
         self.target_label.set_justify(Gtk.Justification.LEFT)
-        target_row.add(self.target_label)
+        target_row.pack_start(self.target_label, False, False, 6)
 
         target_button = Gtk.Button("Change")
         target_button.connect("clicked", self.select_directory)
-        target_row.pack_end(target_button, False, True, 0)
+        target_row.pack_end(target_button, False, True, 6)
 
-        action_box = Gtk.Box(spacing=6)
-        vbox.add(action_box)
+        action_box = Gtk.Box()
+        vbox.pack_end(action_box, False, False, 6)
 
         button = Gtk.Button.new_with_label("Full screen")
         button.connect("clicked", self.take_fullscreen_screenshot)
-        action_box.pack_start(button, True, True, 0)
+        action_box.pack_start(button, True, True, 6)
 
         button = Gtk.Button.new_with_label("Selected window")
         button.connect("clicked", self.take_window_screenshot)
-        action_box.pack_start(button, True, True, 0)
+        action_box.pack_end(button, True, True, 6)
 
-        button = Gtk.Button.new_with_label("Cancel")
-        button.connect("clicked", self.quit)
-        action_box.pack_start(button, True, True, 0)
+    def add_file_menu_actions(self, action_group):
+        action_group.add_actions([
+            ("FileMenu", None, "File"),
+            ("FileQuit", None, "Quit", "q", None, self.quit)
+        ])
+
+    def add_screenshot_menu_actions(self, action_group):
+        action_group.add_actions([
+            ("ScreenshotMenu", None, "Screenshot"),
+            ("ScreenshotTakeFullscreen", None, "Full-screen", "f", None, self.take_fullscreen_screenshot),
+            ("ScreenshotTakeWindow", None, "Single window", "s", None, self.take_window_screenshot)
+        ])
+
+    def create_ui_manager(self):
+        uimanager = Gtk.UIManager()
+        uimanager.add_ui_from_string(UI_INFO)
+
+        accelgroup = uimanager.get_accel_group()
+        self.add_accel_group(accelgroup)
+
+        return uimanager
 
     def set_default_name(self):
         timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
@@ -83,7 +124,7 @@ class Shotty(Gtk.Window):
         call("scrot -q85 " + self.path, shell=True)
 
     def take_window_screenshot(self, button):
-        print("Taking windowed screenshot...")
+        print("Taking window screenshot...")
         call("sleep 2; scrot -sq85 " + self.path, shell=True)
 
     def quit(self, button):
